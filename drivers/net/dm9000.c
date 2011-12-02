@@ -1186,6 +1186,7 @@ dm9000_probe(struct platform_device *pdev)
 	int iosize;
 	int i;
 	u32 id_val;
+	const unsigned char dummy_mac[6] = {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc};
 
 	/* Init network device */
 	ndev = alloc_etherdev(sizeof(struct board_info));
@@ -1377,7 +1378,7 @@ dm9000_probe(struct platform_device *pdev)
 		
 		mac_src = "chip";
 		for (i = 0; i < 6; i++)
-			ndev->dev_addr[i] = ior(db, i+DM9000_PAR);
+			ndev->dev_addr[i] = dummy_mac[i];
 	}
 
 	if (!is_valid_ether_addr(ndev->dev_addr))
