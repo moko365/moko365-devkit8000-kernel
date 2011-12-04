@@ -29,6 +29,9 @@
 #include <linux/spi/ads7846.h>
 #include <asm/irq.h>
 
+#ifdef CONFIG_MACH_OMAP3_DEVKIT8000
+    static const int abs_cal[7] = {0, 1, 0, 1, 0, 0, 1};
+#endif
 
 /*
  * This code has been heavily tested on a Nokia 770, and lightly
@@ -526,6 +529,11 @@ static void ads7846_rx(void *ads)
 	unsigned		Rt;
 	u16			x, y, z1, z2;
 
+#ifdef CONFIG_MACH_OMAP3_DEVKIT8000
+	u16			x_abs, y_abs;
+	struct ads7846_platform_data	*pdata = ts->spi->dev.platform_data;
+#endif
+
 	/* ads7846_rx_val() did in-place conversion (including byteswap) from
 	 * on-the-wire format as part of debouncing to get stable readings.
 	 */
@@ -593,9 +601,22 @@ static void ads7846_rx(void *ads)
 			dev_dbg(&ts->spi->dev, "DOWN\n");
 #endif
 		}
+#ifdef CONFIG_MACH_OMAP3_DEVKIT8000
+		x_abs = (abs_cal[3]*x + abs_cal[4]*y + abs_cal[5])/abs_cal[6];
+		y_abs = (abs_cal[0]*x + abs_cal[1]*y + abs_cal[2])/abs_cal[6];
+
+		x_abs = (pdata->x_max - x_abs) + pdata->x_min;
+		y_abs = (pdata->y_max - y_abs) + pdata->y_min;
+
+		input_report_abs(input, ABS_X, x_abs);
+		input_report_abs(input, ABS_Y, y_abs);
+
+		input_report_abs(input, ABS_PRESSURE, ts->pressure_max-Rt);
+#else
 		input_report_abs(input, ABS_X, x);
 		input_report_abs(input, ABS_Y, y);
 		input_report_abs(input, ABS_PRESSURE, Rt);
+#endif
 
 		input_sync(input);
 #ifdef VERBOSE
@@ -964,6 +985,12 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 
 	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
+#ifdef CONFIG_MACH_OMAP3_DEVKIT8000
+	input_set_abs_params(input_dev, ABS_Y, pdata->y_min,
+		pdata->y_max, 0, 0);
+	input_set_abs_params(input_dev, ABS_X, pdata->x_min,
+		pdata->x_max, 0, 0);
+#else
 	input_set_abs_params(input_dev, ABS_X,
 			pdata->x_min ? : 0,
 			pdata->x_max ? : MAX_12BIT,
@@ -972,6 +999,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 			pdata->y_min ? : 0,
 			pdata->y_max ? : MAX_12BIT,
 			0, 0);
+#endif
 	input_set_abs_params(input_dev, ABS_PRESSURE,
 			pdata->pressure_min, pdata->pressure_max, 0, 0);
 
